@@ -1,4 +1,11 @@
 #coding=utf-8
+try:
+    import gevent
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    gevent = None
+
 import mechanize
 import time
 import urllib
@@ -12,6 +19,47 @@ import copy
 def get_cache():
     """Generate cache string"""
     return str(int(time.time()*1000))
+
+def filesizeformat(bytes):
+    """
+    Formats the value like a 'human-readable' file size (i.e. 13 KB, 4.1 MB,
+    102 bytes, etc).
+    """
+    try:
+        bytes = float(bytes)
+    except (TypeError,ValueError,UnicodeDecodeError):
+        return "%(size)d byte" % {'size': 0}
+
+    filesize_number_format = lambda value: round(value, 1)
+
+    if bytes < 1024:
+        return "%(size)d bytes" % {'size': bytes}
+    if bytes < 1024 * 1024:
+        return "%s KB" % filesize_number_format(bytes / 1024)
+    if bytes < 1024 * 1024 * 1024:
+        return "%s MB" % filesize_number_format(bytes / (1024 * 1024))
+    if bytes < 1024 * 1024 * 1024 * 1024:
+        return "%s GB" % filesize_number_format(bytes / (1024 * 1024 * 1024))
+    if bytes < 1024 * 1024 * 1024 * 1024 * 1024:
+        return "%s TB" % filesize_number_format(bytes / (1024 * 1024 * 1024 * 1024))
+    return "%s PB" % filesize_number_format(bytes / (1024 * 1024 * 1024 * 1024 * 1024))
+
+def display_progress_bar(filename, size):
+    """Display progress bar while downloading"""
+    from gevent.greenlet import LinkedExited
+    width = 32
+    last_size = 0
+    try:
+        while True:
+            if os.path.isfile(filename):
+                current_size = os.path.getsize(filename)
+                percentage = current_size*100/size
+                current_width = width*percentage/100
+                sys.stderr.write('% 3d%% [%s%s] %s/s    \r' % (percentage, '#'*current_width, ' '*(width-current_width), filesizeformat(current_size - last_size)))
+                last_size = current_size
+            time.sleep(1)
+    except LinkedExited:
+        sys.stderr.write('100%% [%s]\n' % ('#'*width))
 
 
 class Xunlei(object):
@@ -194,7 +242,13 @@ class Xunlei(object):
         while not done:
             print 'Start Download: %s (%s)' % (filename, size)
             try:
-                self.download(url, filename)
+                if gevent:
+                    download = gevent.spawn(self.download, url=url, filename=filename)
+                    update_progress = gevent.spawn(display_progress_bar, filename=filename, size=size)
+                    download.link(update_progress)
+                    gevent.joinall([download, update_progress])
+                else:
+                    self.download(url, filename)
             except Exception, e:
                 print e
             print 'End Download: %s' % filename
