@@ -46,6 +46,7 @@ def filesizeformat(bytes):
 
 def display_progress_bar(filename, size):
     """Display progress bar while downloading"""
+    size = long(size)
     from gevent.greenlet import LinkedExited
     width = 32
     last_size = 0
