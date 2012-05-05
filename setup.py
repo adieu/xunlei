@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "xunlei",
-    version = "0.1",
+    version = "0.1.1",
     license = 'BSD',
     description = "Basic API for Xunlei Lixian",
     author='Ivan Diao',
